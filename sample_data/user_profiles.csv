@@ -1,0 +1,6 @@
+user_id,email,first_name,last_name,registration_date,account_type,tier,country,preferred_exchange,kyc_status,phone,date_of_birth,address
+USER001,john.doe@email.com,John,Doe,2023-01-15,PREMIUM,GOLD,USA,COINBASE,VERIFIED,+1-555-0101,1990-05-15,"123 Main St, New York, NY 10001"
+USER002,jane.smith@email.com,Jane,Smith,2023-02-20,STANDARD,SILVER,CANADA,BINANCE,PENDING,+1-555-0102,1985-08-22,"456 Oak Ave, Toronto, ON M5V 2H1"
+USER003,mike.johnson@email.com,Mike,Johnson,2023-03-10,PREMIUM,PLATINUM,UK,KRAKEN,VERIFIED,+44-555-0103,1992-12-03,"789 High St, London, England SW1A 1AA"
+USER004,sarah.wilson@email.com,Sarah,Wilson,2023-04-05,STANDARD,BRONZE,AUSTRALIA,BITFINEX,VERIFIED,+61-555-0104,1988-07-18,"321 Collins St, Melbourne, VIC 3000"
+USER005,alex.brown@email.com,Alex,Brown,2023-05-12,PREMIUM,GOLD,GERMANY,BITSTAMP,REJECTED,+49-555-0105,1995-03-27,"654 Unter den Linden, Berlin, 10117" 
