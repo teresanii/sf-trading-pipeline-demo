@@ -17,15 +17,18 @@ def create_snowflake_connection(test_mode=False):
         'user': 'YOUR_SNOWFLAKE_USER',
         'password': 'YOUR_SNOWFLAKE_PASSWORD',
         'account': 'YOUR_SNOWFLAKE_ACCOUNT',
-        'warehouse': 'YOUR_WAREHOUSE',
-        'database': 'TRADING_ANALYTICS',
-        'schema': 'RAW_DATA'
     }
     
     if test_mode:
         config.update({
             'enable_connection_diag': True,
             'connection_diag_log_path': "./logs"
+        })
+    else: 
+        config.update({
+            'warehouse': 'TRADING_ANALYTICS_WH',
+            'database': 'TRADING_ANALYTICS',
+            'schema': 'RAW_DATA'
         })
     
     return snowflake.connector.connect(**config)
