@@ -11,16 +11,24 @@ Update the script with the correct information for your Snowflake environment.
 import os, sys
 import snowflake.connector
 
-def create_connection():
-    """Create and return Snowflake connection"""
-    return snowflake.connector.connect( ### Update with your Snowflake environment!!!
-        user='YOUR_SNOWFLAKE_USER',
-        password='YOUR_SNOWFLAKE_PASSWORD', 
-        account='YOUR_SNOWFLAKE_ACCOUNT',
-        warehouse='TRADING_ANALYTICS_WH',
-        database='TRADING_ANALYTICS',
-        schema='RAW_DATA'
-    )
+def create_snowflake_connection(test_mode=False):
+    """Create Snowflake connection with optional test configuration"""
+    config = {
+        'user': 'YOUR_SNOWFLAKE_USER',
+        'password': 'YOUR_SNOWFLAKE_PASSWORD',
+        'account': 'YOUR_SNOWFLAKE_ACCOUNT',
+        'warehouse': 'YOUR_WAREHOUSE',
+        'database': 'TRADING_ANALYTICS',
+        'schema': 'RAW_DATA'
+    }
+    
+    if test_mode:
+        config.update({
+            'enable_connection_diag': True,
+            'connection_diag_log_path': "./logs"
+        })
+    
+    return snowflake.connector.connect(**config)
 
 def upload_file(cursor, file_path):
     """Upload file to Snowflake stage"""
@@ -94,12 +102,25 @@ def load_file(cursor, file_path):
         print(f"Unknown file type: {filename}")
 
 def main():
-    """Load all CSV files from sample_data directory"""
-    conn = create_connection()
+
+    if sys.argv[1] == "test": 
+        conn = create_snowflake_connection(test_mode=True)
+        cursor = conn.cursor()
+
+        # Test the connection to Snowflake with a simple query
+        cursor.execute("SELECT CURRENT_VERSION()")
+        result = cursor.fetchone()
+        print(f"✅ Connection successful! Snowflake version: {result[0]}")
+
+        cursor.close()
+        conn.close()
+        return
+
+    # Load the data into Snowflake from the sample_data directory
+    conn = create_snowflake_connection()
     cursor = conn.cursor()
-    
+
     try:
-        # Load sample files
         sample_dir = "sample_data"
         full_sample_dir = sample_dir + "/" + sys.argv[1]
         print(f"Loading {full_sample_dir}...")

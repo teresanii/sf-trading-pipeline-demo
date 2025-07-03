@@ -73,8 +73,8 @@ conn = snowflake.connector.connect(
     user='YOUR_SNOWFLAKE_USER',
     password='YOUR_SNOWFLAKE_PASSWORD', 
     account='YOUR_SNOWFLAKE_ACCOUNT',
-    warehouse='YOUR_WAREHOUSE',
-    database='CRYPTO_ANALYTICS',
+    warehouse='TRADING_ANALYTICS_WH',
+    database='TRADING_ANALYTICS',
     schema='RAW_DATA'
 )
 ```
