@@ -1,7 +1,4 @@
-#!/usr/bin/env python3
 """
-Crypto Broker Analytics - Streamlit Dashboard
-
 Interactive dashboard for visualizing crypto trading data from Snowflake.
 Displays real-time analytics, trading patterns, user insights, and market overview.
 """
@@ -11,18 +8,15 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import snowflake.connector
-import os
-from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import numpy as np
-
-# Load environment variables
-load_dotenv()
+from snowflake.snowpark.context import get_active_session
+from snowflake.snowpark.functions import col as col_, sum as sum_, count
+session = get_active_session()
 
 # Page configuration
 st.set_page_config(
-    page_title="Crypto Broker Analytics",
+    page_title="Trading dashboard",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -49,116 +43,42 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
-def get_snowflake_connection():
-    """Create and return Snowflake connection"""
-    try:
-        conn = snowflake.connector.connect(
-            account=os.getenv('SNOWFLAKE_ACCOUNT'),
-            user=os.getenv('SNOWFLAKE_USER'),
-            password=os.getenv('SNOWFLAKE_PASSWORD'),
-            warehouse=os.getenv('SNOWFLAKE_WAREHOUSE'),
-            database=os.getenv('SNOWFLAKE_DATABASE', 'CRYPTO_ANALYTICS'),
-            schema=os.getenv('SNOWFLAKE_SCHEMA', 'ANALYTICS')
-        )
-        return conn
-    except Exception as e:
-        st.error(f"Failed to connect to Snowflake: {str(e)}")
-        return None
-
-@st.cache_data(ttl=300)
-def load_trading_metrics():
+def load_trading_metrics():    
     """Load daily trading metrics from Snowflake"""
-    conn = get_snowflake_connection()
-    if not conn:
-        return pd.DataFrame()
-    
-    try:
-        query = """
-            SELECT * FROM ANALYTICS.DAILY_TRADING_METRICS
-            ORDER BY trade_date DESC
-        """
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df
-    except Exception as e:
-        st.error(f"Error loading trading metrics: {str(e)}")
-        conn.close()
-        return pd.DataFrame()
+    return session.table("DAILY_TRADING_METRICS").sort(col_("TRADE_DATE").desc())
 
-@st.cache_data(ttl=300)
 def load_top_assets():
     """Load top performing assets"""
-    conn = get_snowflake_connection()
-    if not conn:
-        return pd.DataFrame()
-    
-    try:
-        query = """
-            SELECT * FROM ANALYTICS.TOP_PERFORMING_ASSETS
-            LIMIT 20
-        """
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df
-    except Exception as e:
-        st.error(f"Error loading top assets: {str(e)}")
-        conn.close()
-        return pd.DataFrame()
+    return session.table("TOP_PERFORMING_ASSETS").limit(20)
 
-@st.cache_data(ttl=300)
 def load_user_summary():
     """Load user trading summary"""
-    conn = get_snowflake_connection()
-    if not conn:
-        return pd.DataFrame()
-    
-    try:
-        query = """
-            SELECT * FROM ANALYTICS.USER_TRADING_SUMMARY
-            ORDER BY total_volume DESC
-            LIMIT 50
-        """
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df
-    except Exception as e:
-        st.error(f"Error loading user summary: {str(e)}")
-        conn.close()
-        return pd.DataFrame()
+    return session.table("USER_TRADING_SUMMARY").sort(col_("TOTAL_VOLUME"), ascending=False).limit(50)
 
-@st.cache_data(ttl=300)
 def load_trading_patterns():
     """Load trading patterns by hour and exchange"""
-    conn = get_snowflake_connection()
-    if not conn:
-        return pd.DataFrame()
-    
-    try:
-        query = """
-            SELECT 
-                trade_hour,
-                exchange,
-                symbol,
-                SUM(total_trades) as trades,
-                SUM(total_notional) as volume
-            FROM ANALYTICS.DAILY_TRADING_METRICS
-            GROUP BY trade_hour, exchange, symbol
-            ORDER BY trade_hour, volume DESC
-        """
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return df
-    except Exception as e:
-        st.error(f"Error loading trading patterns: {str(e)}")
-        conn.close()
-        return pd.DataFrame()
+    daily_metrics_df = session.table("DAILY_TRADING_METRICS")
+
+    # Group by trade_hour, exchange, symbol and calculate sums
+    result_df = daily_metrics_df.group_by(
+        col_("TRADE_DATE"),
+        col_("EXCHANGE"),
+        col_("SYMBOL")
+    ).agg(
+        sum_(col_("TOTAL_TRADES")).alias("TRADES"),
+        sum_(col_("TOTAL_NOTIONAL")).alias("VOLUME")
+    ).sort(
+        col_("TRADE_DATE"),
+        col_("VOLUME").desc()
+    )
+
+    return result_df
 
 def main():
     """Main dashboard function"""
     
     # Header
-    st.markdown('<h1 class="main-header">🚀 Crypto Broker Analytics Dashboard</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🚀 Trading Analytics Dashboard</h1>', unsafe_allow_html=True)
     st.markdown("---")
     
     # Sidebar for filters and controls
@@ -172,24 +92,15 @@ def main():
         
         st.markdown("---")
         
-        # Date range selector (placeholder for when we have more data)
-        st.subheader("📅 Filters")
-        show_all_data = st.checkbox("Show All Data", value=True)
         
         # Asset filter
         st.subheader("💰 Asset Selection")
         selected_assets = st.multiselect(
             "Select Cryptocurrencies",
-            options=['BTC-USD', 'ETH-USD', 'ADA-USD', 'DOT-USD', 'SOL-USD', 'AVAX-USD'],
-            default=['BTC-USD', 'ETH-USD', 'SOL-USD']
+            options=['BTC/USD', 'ETH/USD', 'ADA/USD', 'DOT/USD', 'SOL/USD', 'AVAX/USD'],
+            default=['BTC/USD', 'ETH/USD', 'SOL/USD']
         )
-        
-        st.markdown("---")
-        st.markdown("### 🔗 Data Pipeline Status")
-        st.success("✅ Connected to Snowflake")
-        st.info("🔄 Dynamic Tables Active")
-        st.info("📊 Real-time Processing")
-        
+                
     # Load data
     with st.spinner("Loading data from Snowflake..."):
         trading_metrics = load_trading_metrics()
@@ -197,28 +108,42 @@ def main():
         user_summary = load_user_summary()
         trading_patterns = load_trading_patterns()
     
-    if trading_metrics.empty:
+    if trading_metrics.count() == 0:
         st.error("No data available. Please check your Snowflake connection and run the data loader first.")
         return
     
     # Key Performance Indicators
     col1, col2, col3, col4 = st.columns(4)
     
-    with col1:
-        total_trades = trading_metrics['TOTAL_TRADES'].sum()
-        st.metric("Total Trades", f"{total_trades:,}", delta="↗️")
-    
-    with col2:
-        total_volume = trading_metrics['TOTAL_NOTIONAL'].sum()
-        st.metric("Total Volume", f"${total_volume:,.0f}", delta="📈")
-    
-    with col3:
-        unique_traders = trading_metrics['UNIQUE_TRADERS'].sum()
-        st.metric("Active Traders", f"{unique_traders:,}", delta="👥")
-    
-    with col4:
-        avg_trade_size = trading_metrics['TOTAL_NOTIONAL'].sum() / trading_metrics['TOTAL_TRADES'].sum()
-        st.metric("Avg Trade Size", f"${avg_trade_size:,.0f}", delta="💰")
+    # Check if we have data and the required columns exist
+    if all(col in trading_metrics.columns for col in ['TOTAL_TRADES', 'TOTAL_NOTIONAL', 'UNIQUE_TRADERS']):
+        with col1:
+            total_trades = trading_metrics.select(sum_(trading_metrics['TOTAL_TRADES'])).collect()[0][0]
+            st.metric("Total Trades", f"{total_trades:,}", delta="↗️")
+        
+        with col2:
+            total_volume = float(trading_metrics.select(sum_(trading_metrics['TOTAL_NOTIONAL'])).collect()[0][0])
+            st.metric("Total Volume", f"${total_volume:,.0f}", delta="📈")
+        
+        with col3:
+            unique_traders = int(trading_metrics.select(sum_(trading_metrics['UNIQUE_TRADERS'])).collect()[0][0])
+            st.metric("Active Traders", f"{unique_traders:,}", delta="👥")
+        
+        with col4:
+            total_notional_sum = float(trading_metrics.select(sum_(trading_metrics['TOTAL_NOTIONAL'])).collect()[0][0])
+            total_trades_sum = int(trading_metrics.select(sum_(trading_metrics['UNIQUE_TRADERS'])).collect()[0][0])
+            avg_trade_size = total_notional_sum / total_trades_sum if total_trades_sum > 0 else 0
+            st.metric("Avg Trade Size", f"${avg_trade_size:,.0f}", delta="💰")
+    else:
+        # Show placeholder metrics when no data is available
+        with col1:
+            st.metric("Total Trades", "0", delta="No Data")
+        with col2:
+            st.metric("Total Volume", "$0", delta="No Data")
+        with col3:
+            st.metric("Active Traders", "0", delta="No Data")
+        with col4:
+            st.metric("Avg Trade Size", "$0", delta="No Data")
     
     st.markdown("---")
     
@@ -228,10 +153,10 @@ def main():
     with tab1:
         st.header("🏆 Top Performing Assets")
         
-        if not top_assets.empty:
+        if not top_assets.count() == 0:
             # Volume chart
             fig_volume = px.bar(
-                top_assets.head(10),
+                top_assets.limit(10),
                 x='SYMBOL',
                 y='TOTAL_VOLUME',
                 title="Trading Volume by Asset",
@@ -246,21 +171,26 @@ def main():
             
             with col1:
                 st.subheader("💹 Volume Leaders")
-                volume_df = top_assets[['SYMBOL', 'TOTAL_VOLUME', 'TOTAL_TRADES']].head(10)
-                volume_df['TOTAL_VOLUME'] = volume_df['TOTAL_VOLUME'].apply(lambda x: f"${x:,.0f}")
+                volume_df = top_assets[['SYMBOL', 'TOTAL_VOLUME', 'TOTAL_TRADES']].limit(10)
+                pandas_volume_df = volume_df.to_pandas()
+                pandas_volume_df['TOTAL_VOLUME'] = pd.to_numeric(pandas_volume_df['TOTAL_VOLUME'], errors='coerce').fillna(0)
+                pandas_volume_df['TOTAL_VOLUME'] = pandas_volume_df['TOTAL_VOLUME'].apply(lambda x: f"${x:,.0f}")
+                
                 st.dataframe(volume_df, use_container_width=True)
             
             with col2:
                 st.subheader("📈 Price Overview")
-                price_df = top_assets[['SYMBOL', 'AVG_PRICE', 'HIGH_PRICE', 'LOW_PRICE']].head(10)
+                price_df = top_assets[['SYMBOL', 'AVG_PRICE', 'HIGH_PRICE', 'LOW_PRICE']].limit(10)
                 for col in ['AVG_PRICE', 'HIGH_PRICE', 'LOW_PRICE']:
-                    price_df[col] = price_df[col].apply(lambda x: f"${x:,.2f}")
+                    new_price_df = price_df.to_pandas()
+                    new_price_df[col] = pd.to_numeric(new_price_df[col], errors='coerce').fillna(0)
+                    new_price_df[col] = new_price_df[col].apply(lambda x: f"${x:,.2f}")
                 st.dataframe(price_df, use_container_width=True)
     
     with tab2:
         st.header("👥 User Trading Analytics")
         
-        if not user_summary.empty:
+        if not user_summary.count() == 0:
             # User volume distribution
             fig_users = px.histogram(
                 user_summary,
@@ -277,16 +207,20 @@ def main():
             with col1:
                 # Top traders
                 st.subheader("🏆 Top Traders by Volume")
-                top_traders = user_summary.head(10)[['FULL_NAME', 'TIER', 'TOTAL_VOLUME', 'TOTAL_TRADES']]
-                top_traders['TOTAL_VOLUME'] = top_traders['TOTAL_VOLUME'].apply(lambda x: f"${x:,.0f}")
+                top_traders = user_summary.limit(10)[['FULL_NAME', 'TIER', 'TOTAL_VOLUME', 'TOTAL_TRADES']]
+                new_top_traders_df = top_traders.to_pandas()
+                new_top_traders_df['TOTAL_VOLUME'] = pd.to_numeric(new_top_traders_df['TOTAL_VOLUME'], errors='coerce').fillna(0)
+                new_top_traders_df = new_top_traders_df['TOTAL_VOLUME'].apply(lambda x: f"${x:,.0f}")
+                
                 st.dataframe(top_traders, use_container_width=True)
             
             with col2:
                 # User tier distribution
                 st.subheader("💎 User Tier Distribution")
-                tier_counts = user_summary['TIER'].value_counts()
+                tier_counts = user_summary.group_by('TIER').agg(count("*").alias("COUNT")).to_pandas()
                 fig_tier = px.pie(
-                    values=tier_counts.values,
+                    tier_counts,
+                    values='COUNT',
                     names=tier_counts.index,
                     title="Users by Tier"
                 )
@@ -295,25 +229,34 @@ def main():
             # Country analysis
             if 'COUNTRY' in user_summary.columns:
                 st.subheader("🌍 Trading by Country")
-                country_volume = user_summary.groupby('COUNTRY')['TOTAL_VOLUME'].sum().sort_values(ascending=False)
-                fig_country = px.bar(
-                    x=country_volume.index,
-                    y=country_volume.values,
+                country_volume = user_summary.group_by(
+                    col_("COUNTRY")
+                ).agg(
+                    sum_(col_("TOTAL_VOLUME")).alias("TOTAL_VOLUME")
+                ).sort(
+                    col_("TOTAL_VOLUME").desc()
+                ).to_pandas()
+                fig_country = px.bar(country_volume,
+                    x='COUNTRY',
+                    y='TOTAL_VOLUME',
                     title="Trading Volume by Country"
                 )
                 fig_country.update_layout(height=400)
                 st.plotly_chart(fig_country, use_container_width=True)
-    
+
+
+               
+       
     with tab3:
         st.header("⏰ Trading Patterns & Timing")
         
-        if not trading_patterns.empty:
+        if not trading_patterns.count() == 0:
             # Trading activity by hour
-            hourly_data = trading_patterns.groupby('TRADE_HOUR').agg({
-                'TRADES': 'sum',
-                'VOLUME': 'sum'
-            }).reset_index()
-            
+            hourly_data = trading_patterns.group_by('TRADE_DATE').agg(
+                sum_('TRADES').alias('TRADES'),  
+                sum_('VOLUME').alias('VOLUME')    
+            ).to_pandas()
+
             fig_hourly = make_subplots(
                 rows=2, cols=1,
                 subplot_titles=('Trading Volume by Hour', 'Number of Trades by Hour'),
@@ -321,12 +264,12 @@ def main():
             )
             
             fig_hourly.add_trace(
-                go.Bar(x=hourly_data['TRADE_HOUR'], y=hourly_data['VOLUME'], name='Volume'),
+                go.Bar(x=hourly_data['TRADE_DATE'], y=hourly_data['VOLUME'], name='Volume'),
                 row=1, col=1
             )
             
             fig_hourly.add_trace(
-                go.Bar(x=hourly_data['TRADE_HOUR'], y=hourly_data['TRADES'], name='Trades', marker_color='orange'),
+                go.Bar(x=hourly_data['TRADE_DATE'], y=hourly_data['TRADES'], name='Trades', marker_color='orange'),
                 row=2, col=1
             )
             
@@ -339,10 +282,11 @@ def main():
             
             # Exchange comparison
             st.subheader("🏢 Exchange Performance")
-            exchange_data = trading_patterns.groupby('EXCHANGE').agg({
-                'TRADES': 'sum',
-                'VOLUME': 'sum'
-            }).reset_index()
+              
+            exchange_data = trading_patterns.group_by('EXCHANGE').agg(
+                sum_('TRADES').alias('TRADES'),
+                sum_('VOLUME').alias('VOLUME')
+            ).to_pandas()
             
             col1, col2 = st.columns(2)
             
@@ -367,11 +311,11 @@ def main():
     with tab4:
         st.header("🔍 Asset Deep Dive")
         
-        if selected_assets and not trading_metrics.empty:
+        if selected_assets and not trading_metrics.count() == 0:
             # Filter data for selected assets
             filtered_metrics = trading_metrics[trading_metrics['SYMBOL'].isin(selected_assets)]
             
-            if not filtered_metrics.empty:
+            if not filtered_metrics.count() == 0:
                 # Price trends
                 st.subheader("📈 Price Trends")
                 fig_prices = px.line(
@@ -399,11 +343,20 @@ def main():
                 # Detailed metrics table
                 st.subheader("📋 Detailed Metrics")
                 detailed_df = filtered_metrics[['TRADE_DATE', 'SYMBOL', 'TOTAL_TRADES', 'TOTAL_NOTIONAL', 'AVG_PRICE', 'VWAP']]
-                detailed_df = detailed_df.sort_values(['TRADE_DATE', 'TOTAL_NOTIONAL'], ascending=[False, False])
+                detailed_df = detailed_df.sort(col_('TRADE_DATE').desc(), col_('TOTAL_NOTIONAL'))
                 
                 # Format currency columns
                 for col in ['TOTAL_NOTIONAL', 'AVG_PRICE', 'VWAP']:
-                    detailed_df[col] = detailed_df[col].apply(lambda x: f"${x:,.2f}")
+                    new_detailed_df = detailed_df.to_pandas()
+                    new_detailed_df[col] = pd.to_numeric(new_detailed_df[col], errors='coerce').fillna(0)
+                    new_detailed_df[col] = new_detailed_df[col].apply(lambda x: f"${x:,.2f}")
+
+
+                    # new_price_df = price_df.to_pandas()
+                    # new_price_df[col] = pd.to_numeric(new_price_df[col], errors='coerce').fillna(0)
+                    # new_price_df[col] = new_price_df[col].apply(lambda x: f"${x:,.2f}")
+
+                    
                 
                 st.dataframe(detailed_df, use_container_width=True)
             else:
@@ -415,8 +368,7 @@ def main():
     st.markdown("---")
     st.markdown("""
     <div style='text-align: center; color: #666; padding: 1rem;'>
-        🚀 Crypto Broker Analytics Dashboard | Powered by Snowflake Dynamic Tables & Streamlit<br>
-        📊 Real-time data processing | 🔄 Auto-refreshing every 5 minutes
+        Powered by Snowflake | 🔄 Auto-refreshing every 5 minutes
     </div>
     """, unsafe_allow_html=True)
 
