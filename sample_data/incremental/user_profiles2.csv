@@ -1,0 +1,2 @@
+user_id,email,first_name,last_name,registration_date,account_type,tier,country,preferred_exchange,kyc_status,phone,date_of_birth,address,optin
+USER001,john.doe@email.com,John,Doe_UPDATED2,2023-01-15,PREMIUM,GOLD,USA,COINBASE,VERIFIED,+1-555-0101,1990-05-15,"123 Main St, New York, NY 10001",FALSE
