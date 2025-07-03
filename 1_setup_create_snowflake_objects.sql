@@ -1,8 +1,4 @@
-/***************************************************************************************************          
-Trading data analytics hands on lab
-Creates database, schemas, stages, file formats, and tables for the data pipeline
-Run this script once to set up your Snowflake environment
-****************************************************************************************************/
+USE ROLE ACCOUNTADMIN;
 
 -- Create database and schemas
 CREATE DATABASE IF NOT EXISTS TRADING_ANALYTICS;
